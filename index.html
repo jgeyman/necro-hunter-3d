@@ -13,6 +13,7 @@
   #message { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 16px; display: none; z-index: 10; }
   #webgl-error { position: absolute; inset: 0; background: #111; color: #f66; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 40px; z-index: 100; }
   #webgl-error h2 { color: #fff; }
+  #debug { position: absolute; bottom: 10px; left: 10px; color: #0f0; font-size: 12px; z-index: 20; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -28,33 +29,37 @@
 <div id="message"></div>
 <div id="webgl-error">
   <h2>WebGL Required</h2>
-  <p>This 3D game needs WebGL. The chat preview often blocks it.</p>
-  <p><strong>Download this file and open it directly in Chrome, Edge, or Firefox.</strong></p>
-  <p style="font-size:14px; opacity:0.7; margin-top:20px;">Enable hardware acceleration in browser settings if needed.</p>
+  <p>This 3D game needs WebGL.</p>
+  <p><strong>Open this page in Chrome, Edge, or Firefox with hardware acceleration enabled.</strong></p>
 </div>
+<div id="debug">Loading...</div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
-  }
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
 
-<script type="module">
-import * as THREE from 'three';
+<script>
+const debug = document.getElementById('debug');
+function log(msg) { debug.textContent = msg; console.log(msg); }
 
-// Check WebGL early
 function hasWebGL() {
   try {
     const c = document.createElement('canvas');
     return !!(c.getContext('webgl') || c.getContext('experimental-webgl') || c.getContext('webgl2'));
   } catch (e) { return false; }
 }
+
 if (!hasWebGL()) {
   document.getElementById('webgl-error').style.display = 'flex';
+  log('No WebGL');
   throw new Error('No WebGL');
 }
+
+if (typeof THREE === 'undefined') {
+  log('THREE.js failed to load');
+  document.getElementById('webgl-error').style.display = 'flex';
+  throw new Error('THREE not loaded');
+}
+
+log('THREE loaded, starting scene...');
 
 // ========== SCENE ==========
 const scene = new THREE.Scene();
@@ -70,6 +75,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 document.body.appendChild(renderer.domElement);
+
+log('Renderer created');
 
 // Lights
 const hemi = new THREE.HemisphereLight(0x667788, 0x221100, 0.55);
@@ -103,7 +110,7 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Debris / buildings silhouettes
+// Debris
 const debrisMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8 });
 for (let i = 0; i < 22; i++) {
   const w = 2 + Math.random() * 6;
@@ -131,25 +138,21 @@ const skin = new THREE.MeshStandardMaterial({
 const darkSkin = new THREE.MeshStandardMaterial({ color: 0x4a6a5a, roughness: 0.6 });
 const clawMat = new THREE.MeshStandardMaterial({ color: 0x2a3a2a, roughness: 0.4, metalness: 0.3 });
 
-// Body
 const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.62, 1.9, 12, 20), skin);
 body.position.y = 1.45;
 body.castShadow = true;
 monster.add(body);
 
-// Head
 const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 20, 16), skin);
 head.position.set(0, 2.35, 0.35);
 head.scale.set(1.1, 0.85, 1.25);
 head.castShadow = true;
 monster.add(head);
 
-// Jaw
 const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.55), darkSkin);
 jaw.position.set(0, 2.05, 0.65);
 monster.add(jaw);
 
-// Teeth
 for (let i = 0; i < 6; i++) {
   const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.18, 5), clawMat);
   tooth.position.set(-0.15 + i * 0.06, 2.12, 0.85);
@@ -157,7 +160,6 @@ for (let i = 0; i < 6; i++) {
   monster.add(tooth);
 }
 
-// Spines along back
 for (let i = 0; i < 8; i++) {
   const spine = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.65 + (i % 3) * 0.1, 6), darkSkin);
   spine.position.set(0, 2.3 - i * 0.28, -0.25);
@@ -166,9 +168,8 @@ for (let i = 0; i < 8; i++) {
   monster.add(spine);
 }
 
-// Legs (4 articulated)
 const legs = [];
-function makeLeg(x, z, side) {
+function makeLeg(x, z) {
   const leg = new THREE.Group();
   const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.85, 10), skin);
   upper.position.y = -0.42;
@@ -184,7 +185,6 @@ function makeLeg(x, z, side) {
   const foot = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.42), clawMat);
   foot.position.set(0, -1.65, 0.08);
   leg.add(foot);
-  // claws on foot
   for (let c = 0; c < 3; c++) {
     const claw = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.22, 5), clawMat);
     claw.position.set(-0.08 + c * 0.08, -1.65, 0.28);
@@ -195,12 +195,11 @@ function makeLeg(x, z, side) {
   monster.add(leg);
   legs.push({ group: leg, phase: Math.random() * Math.PI * 2 });
 }
-makeLeg(-0.48, 0.25, -1);
-makeLeg(0.48, 0.25, 1);
-makeLeg(-0.42, -0.35, -1);
-makeLeg(0.42, -0.35, 1);
+makeLeg(-0.48, 0.25);
+makeLeg(0.48, 0.25);
+makeLeg(-0.42, -0.35);
+makeLeg(0.42, -0.35);
 
-// Arms / claws (2)
 const arms = [];
 function makeArm(x) {
   const arm = new THREE.Group();
@@ -224,7 +223,6 @@ function makeArm(x) {
 makeArm(-0.62);
 makeArm(0.62);
 
-// Long back tentacles (3)
 const tentacles = [];
 function makeTentacle(x, zOff) {
   const tent = new THREE.Group();
@@ -449,7 +447,6 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.045);
   const t = performance.now() * 0.001;
 
-  // Movement
   const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 8.2 : 4.6;
   const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -464,7 +461,6 @@ function animate() {
   }
   monster.rotation.y = yaw;
 
-  // Leap
   if (leaping) {
     leapVel -= 24 * dt;
     monster.position.y += leapVel * dt;
@@ -481,7 +477,6 @@ function animate() {
     }
   }
 
-  // Camera (third-person smooth)
   const camDist = 6.2;
   const camHeight = 2.8 + pitch * 1.8;
   const camTarget = monster.position.clone().add(new THREE.Vector3(0, 1.7, 0));
@@ -491,20 +486,17 @@ function animate() {
   camera.position.lerp(desiredCam, 0.12);
   camera.lookAt(camTarget);
 
-  // Leg walk animation
   const moving = vel.lengthSq() > 0.001;
-  legs.forEach((leg, i) => {
+  legs.forEach((leg) => {
     const swing = moving ? Math.sin(t * 8 + leg.phase) * 0.45 : 0;
     leg.group.rotation.x = swing;
   });
 
-  // Tentacle sway
   tentacles.forEach((tent, i) => {
     tent.rotation.z = Math.sin(t * 1.4 + i) * 0.25;
     tent.rotation.y = Math.sin(t * 0.9 + i * 2) * 0.15;
   });
 
-  // Humans AI
   humans.forEach(h => {
     if (h.userData.dead) return;
     if (h.userData.stun > 0) {
@@ -520,7 +512,6 @@ function animate() {
       const flee = dist < 8 ? -1.1 : 0.35;
       toPlayer.normalize().multiplyScalar(h.userData.speed * flee * dt);
       h.position.add(toPlayer);
-      // simple limb bob
       h.children.forEach((c, ci) => {
         if (ci >= 2) c.rotation.x = Math.sin(t * 6 + h.userData.phase + ci) * 0.3;
       });
@@ -531,7 +522,6 @@ function animate() {
     }
   });
 
-  // Projectiles
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.position.add(p.userData.vel.clone().multiplyScalar(dt));
@@ -551,7 +541,6 @@ function animate() {
     }
   }
 
-  // Particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.position.add(p.userData.vel.clone().multiplyScalar(dt));
@@ -573,6 +562,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+log('Game running');
 
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
